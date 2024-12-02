@@ -12,6 +12,9 @@ import datetime
 from dateutil.relativedelta import relativedelta
 from deep_translator import GoogleTranslator
 import base64
+from gtts import gTTS
+import os
+
 # Initialize Firebase with your credentials
 cred = credentials.Certificate(
 {
@@ -49,6 +52,50 @@ def translate_text(text, target_language):
         return translated_text
     except Exception as e:
         return f"Translation failed: {e}"
+# Function to generate audio file for translated text using gTTS
+def generate_audio(text, lang):
+    try:
+        tts = gTTS(text=text, lang=lang)
+        audio_file = f"{text[:10]}_{lang}.mp3".replace(" ", "_")  # Create unique file name
+        tts.save(audio_file)
+        return audio_file
+    except Exception as e:
+        st.error(f"Failed to generate audio: {e}")
+        return None
+
+# Function to render clickable text with audio playback
+def render_audio(text, lang):
+    audio_file = generate_audio(text, lang)
+    if audio_file:
+        # Convert audio to base64
+        with open(audio_file, "rb") as file:
+            audio_bytes = file.read()
+            b64_audio = base64.b64encode(audio_bytes).decode()
+
+        # Create HTML and JavaScript for clickable text and play audio
+        html_code = f"""
+        <html>
+            <head>
+                <script>
+                    function playAudio() {{
+                        var audio = new Audio('data:audio/mpeg;base64,{b64_audio}');
+                        audio.play();
+                    }}
+                </script>
+            </head>
+            <body>
+                <p onclick="playAudio()" style="cursor: pointer; color: black;">
+                    {text}
+                </p>
+            </body>
+        </html>
+        """
+
+        # Render the HTML in Streamlit
+        components.html(html_code, height=100)
+
+        # Remove the temporary audio file after rendering
+        os.remove(audio_file)
 
 # Map Indian languages to their codes
 INDIAN_LANGUAGES = {
@@ -151,7 +198,8 @@ def home_page():
 
 
     st.markdown("<h1>"+translate_text("Welcome to the Home Page",language_code)+"</h1>", unsafe_allow_html=True) 
-    st.write(translate_text("You are now logged in to BloodBuddy.",language_code))
+    st.write(render_audio(translate_text("You are now logged in to BloodBuddy.",language_code),language_code))
+    
 
 # Function for donate page
 def donate_page():
@@ -163,7 +211,7 @@ def donate_page():
     blood_group = st.selectbox(translate_text("Choose what to donate:",language_code), ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
 
-    if st.button(translate_text("Submit",language_code) , key="donate_submit",):
+    if st.button(translate_text("Submit",language_code), key="donate_submit"):
         if not all([name, mobile, age, gender, blood_group, address]):
             st.error(translate_text("Please fill out all fields!",language_code))
         else:
