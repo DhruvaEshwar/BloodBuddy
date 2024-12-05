@@ -519,6 +519,8 @@ def donor_requests_page():
 
 
 
+
+
 def donor_history_page():
     st.markdown("<h1 style='text-align: center;'>"+translate_text("Donation History",language_code)+"</h1>", unsafe_allow_html=True)
 

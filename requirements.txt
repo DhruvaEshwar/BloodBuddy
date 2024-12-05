@@ -8,3 +8,4 @@ streamlit-folium>=0.23.2
 xds-protos>=1.68.0
 yagmail>=0.15.293
 gTTS>=2.5.4
+python==3.x
