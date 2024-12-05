@@ -16,7 +16,13 @@ from gtts import gTTS
 import os
 
 st.set_page_config(page_title="BloodBuddy App", page_icon="🩸", layout="centered", initial_sidebar_state="expanded")
-
+st.markdown("""
+    <style>
+        html[theme="dark"] {
+            filter: invert(100%);
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # Initialize Firebase with your credentials
 cred = credentials.Certificate(
