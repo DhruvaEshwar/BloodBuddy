@@ -393,7 +393,7 @@ def sos_page():
                 if not nearby_donors:
                     st.warning("No donors found within 15 km radius.")
                 else:
-                    
+                    # Create SOS request
                     sos_data = {
                         "name": name,
                         "mobile": mobile,
