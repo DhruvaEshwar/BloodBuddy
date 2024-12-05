@@ -195,22 +195,9 @@ def signup_page():
 target_language = st.selectbox("Select target language:", INDIAN_LANGUAGES.keys())
 language_code = INDIAN_LANGUAGES[target_language]
 def home_page():
-    st.markdown("""
-    <style>
-        .custom-text {
-            color: var(--text-color);
-        }
-        html[theme="light"] .custom-text {
-            --text-color: black;
-        }
-        html[theme="dark"] .custom-text {
-            --text-color: white;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
+    
     st.markdown("<h1>"+translate_text("Welcome to the Home Page",language_code)+"</h1>", unsafe_allow_html=True) 
-    st.markdown(render_audio(translate_text("<div class='custom-text'>You are now logged in to BloodBuddy App</div>",language_code),language_code))
+    st.write(render_audio(translate_text("You are now logged in to BloodBuddy.",language_code),language_code))
 
     if st.button("SOS", use_container_width=True, key="sos_button"):
         st.session_state.page = 'sos'
