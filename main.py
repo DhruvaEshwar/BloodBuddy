@@ -199,6 +199,9 @@ def home_page():
 
     st.markdown("<h1>"+translate_text("Welcome to the Home Page",language_code)+"</h1>", unsafe_allow_html=True) 
     st.write(render_audio(translate_text("You are now logged in to BloodBuddy.",language_code),language_code))
+
+    if st.button("SOS", use_container_width=True, key="sos_button"):
+        st.session_state.page = 'sos'
     
 
 # Function for donate page
@@ -210,6 +213,9 @@ def donate_page():
     gender = st.selectbox(translate_text("Select your gender:",language_code),[translate_text("Male",language_code),translate_text("Female",language_code), translate_text("Other",language_code)])
     blood_group = st.selectbox(translate_text("Choose what to donate:",language_code), ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
+
+    if age<18 or age>65:
+        st.error(translate_text("You should be greater than 18 and lesser than 66!",language_code))
 
     if st.button(translate_text("Submit",language_code), key="donate_submit"):
         if not all([name, mobile, age, gender, blood_group, address]):
@@ -357,6 +363,79 @@ def receive_page():
         st.markdown(translate_text("### Donor Map:",language_code))
         st_folium(st.session_state.donor_map, width=700, height=500)
 
+def sos_page():
+    st.markdown("<h1 style='text-align: center;'>SOS Request</h1>", unsafe_allow_html=True)
+
+    # Input fields for SOS request
+    name = st.text_input("Enter your name:", key="sos_name")
+    mobile = st.text_input("Enter your mobile number:", key="sos_mobile")
+    blood_group = st.selectbox("Select your blood group:", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"], key="sos_blood_group")
+    address = st.text_area("Enter your address (e.g., City, State, Country):", key="sos_address")
+
+    if st.button("Submit SOS Request", key="sos_submit"):
+        if not all([name, mobile, blood_group, address]):
+            st.error("Please fill out all fields!")
+        else:
+            coords = get_coordinates(address)
+            if not coords:
+                st.error("Could not determine your location. Please enter a valid address.")
+            else:
+                # Get all donors with the same blood group
+                donors = db.collection("donors").where("blood_group", "==", blood_group).stream()
+                nearby_donors = []
+                for donor in donors:
+                    donor_data = donor.to_dict()
+                    donor_coords = tuple(map(float, donor_data["location"].split(',')))
+                    distance = geodesic(coords, donor_coords).km
+                    if distance <= 15:
+                        nearby_donors.append(donor_data)
+
+                if not nearby_donors:
+                    st.warning("No donors found within 15 km radius.")
+                else:
+                    # Create SOS request
+                    sos_data = {
+                        "name": name,
+                        "mobile": mobile,
+                        "blood_group": blood_group,
+                        "address": address,
+                        "location": f"{coords[0]},{coords[1]}",
+                        "created_at": datetime.datetime.now().isoformat(),
+                        "status": "Pending"
+                    }
+                    # Add SOS request to Firestore
+                    sos_ref = db.collection("sos_requests").add(sos_data)
+
+                    # Ensure the same request is not added multiple times for the same donor
+                    for donor in nearby_donors:
+                        # Check if the request already exists for this donor to avoid duplication
+                        existing_request_query = db.collection("requests") \
+                            .where("donor_mobile", "==", donor["mobile"]) \
+                            .where("receiver_mobile", "==", mobile) \
+                            .where("type", "==", "SOS") \
+                            .stream()
+
+                        # If request doesn't already exist, add it to requests collection
+                        if not any(existing_request.id for existing_request in existing_request_query):
+                            db.collection("requests").add({
+                                "receiver_name": name,
+                                "receiver_mobile": mobile,
+                                "receiver_blood_group": blood_group,
+                                "receiver_address": address,
+                                "receiver_coords": f"{coords[0]},{coords[1]}",
+                                "donor_name": donor["name"],
+                                "donor_mobile": donor["mobile"],
+                                "donor_blood_group": donor["blood_group"],
+                                "donor_coords": donor["location"],
+                                "requested_at": datetime.datetime.now().isoformat(),
+                                "type": "SOS"
+                            })
+
+                    st.success("SOS request submitted successfully! Donors in your area will be notified.")
+    
+    # Back button to return to home page
+    if st.button("Back to Home", key="back_to_home"):
+        st.session_state.page = "home"
 
 
 #function for donors request                 
@@ -537,6 +616,8 @@ def render_page():
         login_page()
     elif st.session_state.page == 'signup':
         signup_page()
+    elif st.session_state.page == 'sos':  # Add this condition for SOS page
+        sos_page()
     elif st.session_state.page in ['home', 'donate', 'receive', 'settings' , 'blood_requests' , "donor_his" , "forum"]:
         with st.sidebar:
             st.markdown("<h2 style='text-align: center;'>"+translate_text("Options",language_code)+"</h2>", unsafe_allow_html=True)
