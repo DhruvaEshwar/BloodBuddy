@@ -15,6 +15,9 @@ import base64
 from gtts import gTTS
 import os
 
+st.set_page_config(page_title="BloodBuddy App", page_icon="🩸", layout="centered", initial_sidebar_state="expanded")
+
+
 # Initialize Firebase with your credentials
 cred = credentials.Certificate(
 {
