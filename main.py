@@ -441,6 +441,7 @@ def donor_requests_page():
             return
 
         global donor_data 
+        
         donor_data = donor_info[0].to_dict()
         donor_blood_group = donor_data.get("blood_group")
         donor_coords = tuple(map(float, donor_data.get("location", "").split(",")))
