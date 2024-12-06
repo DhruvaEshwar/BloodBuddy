@@ -413,6 +413,14 @@ def sos_page():
         st.session_state.page = "home"
 
 # Donor Requests Page
+import streamlit as st
+import datetime
+from geopy.distance import geodesic
+from firebase_admin import firestore
+
+# Initialize Firestore
+db = firestore.client()
+
 def donor_requests_page():
     st.markdown("<h1 style='text-align: center;'>Donor Requests</h1>", unsafe_allow_html=True)
 
@@ -431,7 +439,7 @@ def donor_requests_page():
         # Fetch donor's information from Firestore
         donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
 
-        if not donor_info:
+        if len(donor_info) == 0:
             st.error("No donor found with this mobile number!")
             return
 
