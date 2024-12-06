@@ -12,6 +12,18 @@ import datetime
 from dateutil.relativedelta import relativedelta
 from deep_translator import GoogleTranslator
 import base64
+from gtts import gTTS
+import os
+
+st.set_page_config(page_title="BloodBuddy App", page_icon="🩸", layout="centered", initial_sidebar_state="expanded")
+st.markdown("""
+    <style>
+        html[theme="dark"] {
+            filter: invert(100%);
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Initialize Firebase with your credentials
 cred = credentials.Certificate(
 {
@@ -49,6 +61,50 @@ def translate_text(text, target_language):
         return translated_text
     except Exception as e:
         return f"Translation failed: {e}"
+# Function to generate audio file for translated text using gTTS
+def generate_audio(text, lang):
+    try:
+        tts = gTTS(text=text, lang=lang)
+        audio_file = f"{text[:10]}_{lang}.mp3".replace(" ", "_")  # Create unique file name
+        tts.save(audio_file)
+        return audio_file
+    except Exception as e:
+        st.error(f"Failed to generate audio: {e}")
+        return None
+
+# Function to render clickable text with audio playback
+def render_audio(text, lang):
+    audio_file = generate_audio(text, lang)
+    if audio_file:
+        # Convert audio to base64
+        with open(audio_file, "rb") as file:
+            audio_bytes = file.read()
+            b64_audio = base64.b64encode(audio_bytes).decode()
+
+        # Create HTML and JavaScript for clickable text and play audio
+        html_code = f"""
+        <html>
+            <head>
+                <script>
+                    function playAudio() {{
+                        var audio = new Audio('data:audio/mpeg;base64,{b64_audio}');
+                        audio.play();
+                    }}
+                </script>
+            </head>
+            <body>
+                <p onclick="playAudio()" style="cursor: pointer; color: black;">
+                    {text}
+                </p>
+            </body>
+        </html>
+        """
+
+        # Render the HTML in Streamlit
+        components.html(html_code, height=100)
+
+        # Remove the temporary audio file after rendering
+        os.remove(audio_file)
 
 # Map Indian languages to their codes
 INDIAN_LANGUAGES = {
@@ -110,6 +166,8 @@ def login_page():
     if not user.email_verified:
             st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
             return
+    if ValueError: 
+        print("Invalid email:  Email must be a non-empty string.")
 
     if st.button('Login', key="login_btn"):
         try:
@@ -118,6 +176,7 @@ def login_page():
             st.session_state.page = 'home'
         except Exception:
             st.error('Login failed. Check your credentials.')
+        
 
     if st.button('Back', key="login_back"):
         st.session_state.page = 'main'
@@ -148,22 +207,28 @@ def signup_page():
 target_language = st.selectbox("Select target language:", INDIAN_LANGUAGES.keys())
 language_code = INDIAN_LANGUAGES[target_language]
 def home_page():
-
-
+    
     st.markdown("<h1>"+translate_text("Welcome to the Home Page",language_code)+"</h1>", unsafe_allow_html=True) 
-    st.write(translate_text("You are now logged in to BloodBuddy.",language_code))
+    st.write(render_audio(translate_text("You are now logged in to BloodBuddy.",language_code),language_code))
+
+    if st.button("SOS", use_container_width=True, key="sos_button"):
+        st.session_state.page = 'sos'
+    
 
 # Function for donate page
 def donate_page():
     st.markdown("<h1 style='text-align: center;'>"+translate_text("Donate blood",language_code)+"</h1>", unsafe_allow_html=True)
     name = st.text_input(translate_text("Enter your name:",language_code))
     mobile = st.text_input(translate_text("Enter your mobile number:",language_code))
-    age = st.number_input(translate_text("Enter your age:", language_code), min_value=1, max_value=100,)
+    age = st.number_input(translate_text("Enter your age:", language_code), min_value=18, max_value=65,)
     gender = st.selectbox(translate_text("Select your gender:",language_code),[translate_text("Male",language_code),translate_text("Female",language_code), translate_text("Other",language_code)])
     blood_group = st.selectbox(translate_text("Choose what to donate:",language_code), ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
 
-    if st.button(translate_text("Submit",language_code) , key="donate_submit",):
+    if age<18 or age>65:
+        st.error(translate_text("You should be greater than 18 and lesser than 66!",language_code))
+
+    if st.button(translate_text("Submit",language_code), key="donate_submit"):
         if not all([name, mobile, age, gender, blood_group, address]):
             st.error(translate_text("Please fill out all fields!",language_code))
         else:
@@ -208,7 +273,11 @@ def receive_page():
     gender = st.selectbox(translate_text("Select your gender:", language_code), [translate_text("Male",language_code),translate_text("Female",language_code), translate_text("Other",language_code)])
     blood_group = st.selectbox("Choose what you need:", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
-
+    dist = st.selectbox(
+            'Select a number:',
+                [10, 15, 20]  # Options in the dropdown
+                )
+     
     # Initialize session state for map, donors, and receiver coordinates
     if "donor_map" not in st.session_state:
         st.session_state.donor_map = None
@@ -239,7 +308,7 @@ def receive_page():
                     donor_coords = tuple(map(float, donor_data["location"].split(',')))
                     distance = geodesic(donor_coords, receiver_coords).km
 
-                    if distance <= 10:  # Only include donors within 10km radius
+                    if distance <= dist:  # Only include donors within 10km radius
                         # Calculate months since last donation using the last_donation field
                         last_donation = donor_data.get("last_donation", None)
                         if last_donation:
@@ -309,9 +378,43 @@ def receive_page():
         st.markdown(translate_text("### Donor Map:",language_code))
         st_folium(st.session_state.donor_map, width=700, height=500)
 
+def sos_page():
+    st.markdown("<h1 style='text-align: center;'>🚨 Emergency SOS Request</h1>", unsafe_allow_html=True)
+
+    # Input fields for SOS request
+    name = st.text_input("Enter your name:", key="sos_name")
+    address = st.text_input("Enter your address (e.g., City, State, Country):", key="sos_address")
+    blood_group = st.selectbox("Select your blood group:", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"], key="sos_blood_group")
+    mobile = st.text_input("Enter your mobile number:", key="sos_mobile")
+
+    if st.button("Submit SOS Request", key="submit_sos"):
+        if not all([name, address, blood_group, mobile]):
+            st.error("Please fill out all fields!")
+        else:
+            coords = get_coordinates(address)
+            if not coords:
+                st.error("Could not find the location. Please enter a valid address.")
+            else:
+                # Save SOS request to Firestore
+                sos_request_data = {
+                    "name": name,
+                    "address": address,
+                    "blood_group": blood_group,
+                    "mobile": mobile,
+                    "location": f"{coords[0]},{coords[1]}",
+                    "submitted_at": datetime.datetime.now().isoformat(),
+                    "status": "Pending"
+                }
+                db.collection("sos_requests").add(sos_request_data)
+                st.success("SOS Request submitted successfully!")
+
+    # Back button to return to the home page
+    if st.button("Back to Home", key="back_to_home"):
+        st.session_state.page = "home"
 
 
-#function for donors request                 
+
+# Donor Requests Page
 def donor_requests_page():
     st.markdown("<h1 style='text-align: center;'>"+translate_text("Blood Requests",language_code)+"</h1>", unsafe_allow_html=True)
 
@@ -393,53 +496,58 @@ def donor_requests_page():
 
 
 
-
 def donor_history_page():
-    st.markdown("<h1 style='text-align: center;'>"+translate_text("Donation History",language_code)+"</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>Donation History</h1>", unsafe_allow_html=True)
 
     # Input for donor's mobile number
-    donor_mobile = st.text_input(translate_text("Enter your mobile number to view your history:",language_code), key="donor_mobile",)
+    donor_mobile = st.text_input("Enter your mobile number to view your history:", key="history_donor_mobile")
 
-    if st.button(translate_text("View History",language_code),key="view_history"):
+    if st.button("View History", key="view_history"):
         if not donor_mobile:
-            st.error(translate_text("Please enter your mobile number!",language_code))
+            st.error("Please enter your mobile number!")
         else:
-            # Query the requests collection for accepted donations
             try:
-                history_query = db.collection("requests") \
-                                  .where("donor_mobile", "==", donor_mobile) \
-                                  .where("status", "==", "Accepted") \
-                                  .stream()
+                # Fetch Accepted Regular Donations (show only accepted requests)
+                regular_history_query = db.collection("requests") \
+                    .where("donor_mobile", "==", donor_mobile) \
+                    .where("status", "==", "Accepted") \
+                    .stream()
 
-                # Load history into session state
-                st.session_state.donation_history = [
-                    {"id": req.id, **req.to_dict()} for req in history_query
-                ]
+                regular_history = [{"id": req.id, **req.to_dict()} for req in regular_history_query]
 
-                # Notify if no history
-                if not st.session_state.donation_history:
-                    st.info(translate_text("No accepted donations found.",language_code))
+                # Fetch Accepted SOS Donations (show only accepted requests)
+                sos_history_query = db.collection("sos_requests") \
+                    .where("donor_mobile", "==", donor_mobile) \
+                    .where("status", "==", "Accepted") \
+                    .stream()
+
+                sos_history = [{"id": req.id, **req.to_dict()} for req in sos_history_query]
+
+                # Display Regular Accepted Donations
+                st.markdown("### Regular Donations:")
+                if regular_history:
+                    for donation in regular_history:
+                        st.write(f"""
+                        **Receiver Name:** {donation['receiver_name']}  
+                        **Blood Group:** {donation['receiver_blood_group']}  
+                        **acceptedt:** {donation['accepted_at']}  
+                        """)
                 else:
-                    st.success(translate_text("Donation history loaded successfully!",language_code))
+                    st.info("No regular accepted donations found.")
+
+                # Display SOS Accepted Donations
+                st.markdown("### 🆘 SOS Donations:")
+                if sos_history:
+                    for donation in sos_history:
+                        st.write(f"""
+                        **Name:** {donation['name']}  
+                        **Blood Group:** {donation['blood_group']}  
+                        **Accepted At:** {donation['accepted_at']}  
+                        """)
+                else:
+                    st.info("No SOS accepted donations found.")
             except Exception as e:
-                st.error(translate_text(f"Error fetching history: {e}",language_code))
-
-    # Display history if available
-    if "donation_history" in st.session_state and st.session_state.donation_history:
-        st.markdown(translate_text("### Accepted Donations:",language_code))
-
-        for idx, donation in enumerate(st.session_state.donation_history):
-            donation_date = donation.get("accepted_at", "N/A")
-            st.write(f"""
-            *Receiver Name:* {donation['receiver_name']}  
-            *Receiver Mobile:* {donation['receiver_mobile']}  
-            *Blood Group:* {donation['receiver_blood_group']}  
-            *Donation Date:* {donation_date}  
-            """)
-
-            if st.button(f"View Details {idx+1}", key=f"view_details_{idx}"):
-                st.write(f"*Full Details for Request ID {donation['id']}:*")
-                st.json(donation)
+                st.error(f"Error fetching donation history: {e}")
 
 
 def forum_page():
@@ -489,6 +597,8 @@ def render_page():
         login_page()
     elif st.session_state.page == 'signup':
         signup_page()
+    elif st.session_state.page == 'sos':  # Add this condition for SOS page
+        sos_page()
     elif st.session_state.page in ['home', 'donate', 'receive', 'settings' , 'blood_requests' , "donor_his" , "forum"]:
         with st.sidebar:
             st.markdown("<h2 style='text-align: center;'>"+translate_text("Options",language_code)+"</h2>", unsafe_allow_html=True)
