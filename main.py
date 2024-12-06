@@ -412,10 +412,7 @@ def sos_page():
     if st.button("Back to Home", key="back_to_home"):
         st.session_state.page = "home"
 
-donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
-global donor_data = donor_info[0].to_dict()
-donor_blood_group = donor_data["blood_group"]
-donor_coords = tuple(map(float, donor_data["location"].split(",")))
+
 
 # Donor Requests Page
 def donor_requests_page():
@@ -441,7 +438,7 @@ def donor_requests_page():
             return
 
         global donor_data 
-        
+
         donor_data = donor_info[0].to_dict()
         donor_blood_group = donor_data.get("blood_group")
         donor_coords = tuple(map(float, donor_data.get("location", "").split(",")))
