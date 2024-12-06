@@ -415,84 +415,173 @@ def sos_page():
 
 
 # Donor Requests Page
+import datetime
+import geopy
+from geopy.distance import geodesic
+import streamlit as st
+from firebase_admin import firestore
+
+# Assuming `db` is already initialized Firestore client
+
 def donor_requests_page():
-    st.markdown("<h1 style='text-align: center;'>"+translate_text("Blood Requests",language_code)+"</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>Donor Requests</h1>", unsafe_allow_html=True)
 
+    # Input field for the donor's mobile number
+    donor_mobile = st.text_input("Enter your mobile number to view requests:", key="donor_mobile")
 
-    # Input for donor's mobile number
-    donor_mobile = st.text_input(translate_text("Enter your mobile number to view requests:",language_code), key="donor_mobile",)
-
-    if st.button(translate_text("View Requests",language_code),key="view_requests"):
+    if st.button("View Requests", key="view_requests"):
         if not donor_mobile:
-            st.error(translate_text("Please enter your mobile number!",language_code))
-        else:
-            # Fetch all requests for this donor's blood
-            requests_query = db.collection("requests").where("donor_mobile", "==", donor_mobile).stream()
+            st.error("Please enter your mobile number!")
+            return
 
-            # Load requests into session state
-            st.session_state.requests = [
-                {"id": req.id, **req.to_dict()} for req in requests_query
+        # Initialize session state to hold fetched requests
+        if "donor_requests" not in st.session_state:
+            st.session_state.donor_requests = {"regular": [], "sos": []}
+
+        # Fetch donor's information from Firestore using the mobile number
+        try:
+            donor_info = db.collection("donors").where("mobile", "==", donor_mobile).limit(1).get()
+
+            if not donor_info:
+                st.error("No donor found with this mobile number!")
+                return
+
+            donor_data = donor_info[0].to_dict()
+            donor_blood_group = donor_data.get("blood_group")
+            donor_coords = tuple(map(float, donor_data.get("location", "").split(",")))
+
+            st.write(f"Donor Data: {donor_data}")  # Debugging line to check donor data
+
+        except Exception as e:
+            st.error(f"Error fetching donor data: {e}")
+            return
+
+        # Fetch Regular Requests
+        try:
+            regular_requests = db.collection("requests").where("status", "!=", "Accepted").where("donor_mobile", "==", donor_mobile).stream()
+            st.session_state.donor_requests["regular"] = [
+                {"id": req.id, **req.to_dict()} for req in regular_requests
             ]
+        except Exception as e:
+            st.error(f"Error fetching regular requests: {e}")
 
-            # Notify if no requests
-            if not st.session_state.requests:
-                st.info(translate_text("No blood requests found.",language_code))
-            else:
-                st.success(translate_text("Requests loaded successfully!",language_code))
+        # Fetch SOS Requests
+        try:
+            sos_requests = db.collection("sos_requests").where("status", "!=", "Accepted").where("blood_group", "==", donor_blood_group).stream()
+            st.session_state.donor_requests["sos"] = []
 
-    # Display requests if available
-    if "requests" in st.session_state and st.session_state.requests:
-        st.markdown(translate_text("### Blood Requests:",language_code))
+            for req in sos_requests:
+                req_data = req.to_dict()
+                req_data["id"] = req.id  # Ensure the 'id' is included in the request data
+                sos_coords = tuple(map(float, req_data["location"].split(",")))
+                distance = geodesic(donor_coords, sos_coords).km
+                if distance <= 15:  # Include only SOS requests within 15 km
+                    req_data["distance"] = round(distance, 2)  # Add distance info
+                    st.session_state.donor_requests["sos"].append(req_data)
 
-        for idx, req in enumerate(st.session_state.requests):
-            if req.get("status") in ["Accepted", "Rejected"]:
-                continue  # Skip already processed requests
+        except Exception as e:
+            st.error(f"Error fetching SOS requests: {e}")
 
-            # Display request details
-            st.write(f"""
-            *Receiver Name:* {req['receiver_name']}  
-            *Blood Group Needed:* {req['receiver_blood_group']}  
-            *Receiver Mobile:* {req['receiver_mobile']}  
-            *Request Date:* {req['requested_at']}  
-            """)
+    # Display Requests
+    if "donor_requests" in st.session_state:
+        # SOS Requests Section
+        st.markdown("### 🆘 Emergency SOS Requests:")
+        if st.session_state.donor_requests["sos"]:
+            for idx, req in enumerate(st.session_state.donor_requests["sos"]):
+                st.markdown(f"**SOS Request {idx + 1} (Emergency)**")
+                st.write(f"""
+                **Name:** {req['name']}  
+                **Blood Group:** {req['blood_group']}  
+                **Mobile:** {req['mobile']}  
+                **Address:** {req['address']}  
+                **Distance:** {req['distance']} km  
+                **Submitted At:** {req['submitted_at']}  
+                """)
 
-            # Accept and Reject buttons
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"Accept Request {idx+1}", key=f"accept_{idx}"):
-                    # Update request status to "Accepted" and store the current timestamp
-                    try:
-                        now = datetime.datetime.now().isoformat()
-                        db.collection("requests").document(req["id"]).update({
-                            "status": "Accepted",
-                            "accepted_at": now
-                        })
+                # Accept and Reject Buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Accept SOS {idx + 1}", key=f"accept_sos_{idx}"):
+                        try:
+                            if 'donor_data' not in locals():
+                                st.error("Donor data is unavailable. Please try again.")
+                                return
 
-                        donor_ref = db.collection("donors").where("mobile", "==", donor_mobile).get()[0].reference
-                        donor_ref.update({"last_donation": now})
+                            # Update the status of the SOS request to Accepted
+                            db.collection("sos_requests").document(req["id"]).update({"status": "Accepted"})
 
-                        # Update session state
-                        req["status"] = "Accepted"
-                        req["accepted_at"] = now
-                        st.session_state.requests[idx] = req
-                        st.success(f"Request from {req['receiver_name']} accepted!")
-                    except Exception as e:
-                        st.error(f"Error accepting request: {e}")
+                            # Store the donor's information in the sos_requests document
+                            donor_info_to_store = {
+                                "donor_name": donor_data["name"],
+                                "donor_mobile": donor_data["mobile"],
+                                "donor_blood_group": donor_data["blood_group"],
+                                "donor_coords": f"{donor_coords[0]},{donor_coords[1]}",
+                                "donor_accepted_at": datetime.datetime.now().isoformat()
+                            }
+                            db.collection("sos_requests").document(req["id"]).update(donor_info_to_store)
 
+                            st.success(f"SOS Request {idx + 1} accepted successfully!")
+                        except Exception as e:
+                            st.error(f"Error accepting SOS request: {e}")
 
-            with col2:
-                if st.button(f"Reject Request {idx+1}", key=f"reject_{idx}"):
-                    # Update request status to "Rejected"
-                    try:
-                        db.collection("requests").document(req["id"]).update({"status": "Rejected"})
+                with col2:
+                    if st.button(f"Reject SOS {idx + 1}", key=f"reject_sos_{idx}"):
+                        try:
+                            db.collection("sos_requests").document(req["id"]).update({"status": "Rejected"})
+                            st.warning(f"SOS Request {idx + 1} rejected!")
+                        except Exception as e:
+                            st.error(f"Error rejecting SOS request: {e}")
+        else:
+            st.info("No SOS requests found.")
 
-                        # Update session state
-                        req["status"] = "Rejected"
-                        st.session_state.requests[idx] = req
-                        st.warning(f"Request from {req['receiver_name']} rejected!")
-                    except Exception as e:
-                        st.error(f"Error rejecting request: {e}")
+        # Regular Requests Section
+        st.markdown("### Regular Requests:")
+        if st.session_state.donor_requests["regular"]:
+            for idx, req in enumerate(st.session_state.donor_requests["regular"]):
+                st.markdown(f"**Request {idx + 1}**")
+                st.write(f"""
+                **Receiver Name:** {req['receiver_name']}  
+                **Blood Group:** {req['receiver_blood_group']}  
+                **Mobile:** {req['receiver_mobile']}  
+                **Address:** {req['receiver_address']}  
+                **Requested At:** {req['requested_at']}  
+                """)
 
+                # Accept and Reject Buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Accept Regular {idx + 1}", key=f"accept_regular_{idx}"):
+                        try:
+                            if 'donor_data' not in locals():
+                                st.error("Donor data is unavailable. Please try again.")
+                                return
+
+                            # Update the status of the regular request to Accepted
+                            db.collection("requests").document(req["id"]).update({"status": "Accepted"})
+
+                            # Store the donor's information in the requests document
+                            donor_info_to_store = {
+                                "donor_name": donor_data["name"],
+                                "donor_mobile": donor_data["mobile"],
+                                "donor_blood_group": donor_data["blood_group"],
+                                "donor_coords": f"{donor_coords[0]},{donor_coords[1]}",
+                                "donor_accepted_at": datetime.datetime.now().isoformat()
+                            }
+                            db.collection("requests").document(req["id"]).update(donor_info_to_store)
+
+                            st.success(f"Regular Request {idx + 1} accepted successfully!")
+                        except Exception as e:
+                            st.error(f"Error accepting regular request: {e}")
+
+                with col2:
+                    if st.button(f"Reject Regular {idx + 1}", key=f"reject_regular_{idx}"):
+                        try:
+                            db.collection("requests").document(req["id"]).update({"status": "Rejected"})
+                            st.warning(f"Regular Request {idx + 1} rejected!")
+                        except Exception as e:
+                            st.error(f"Error rejecting regular request: {e}")
+        else:
+            st.info("No regular requests found.")
 
 
 
