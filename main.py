@@ -166,6 +166,8 @@ def login_page():
     if not user.email_verified:
             st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
             return
+    if ValueError: 
+        print("Invalid email:  Email must be a non-empty string.")
 
     if st.button('Login', key="login_btn"):
         try:
@@ -174,6 +176,7 @@ def login_page():
             st.session_state.page = 'home'
         except Exception:
             st.error('Login failed. Check your credentials.')
+        
 
     if st.button('Back', key="login_back"):
         st.session_state.page = 'main'
@@ -217,7 +220,7 @@ def donate_page():
     st.markdown("<h1 style='text-align: center;'>"+translate_text("Donate blood",language_code)+"</h1>", unsafe_allow_html=True)
     name = st.text_input(translate_text("Enter your name:",language_code))
     mobile = st.text_input(translate_text("Enter your mobile number:",language_code))
-    age = st.number_input(translate_text("Enter your age:", language_code), min_value=1, max_value=100,)
+    age = st.number_input(translate_text("Enter your age:", language_code), min_value=18, max_value=65,)
     gender = st.selectbox(translate_text("Select your gender:",language_code),[translate_text("Male",language_code),translate_text("Female",language_code), translate_text("Other",language_code)])
     blood_group = st.selectbox(translate_text("Choose what to donate:",language_code), ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
@@ -270,7 +273,11 @@ def receive_page():
     gender = st.selectbox(translate_text("Select your gender:", language_code), [translate_text("Male",language_code),translate_text("Female",language_code), translate_text("Other",language_code)])
     blood_group = st.selectbox("Choose what you need:", ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Other"])
     address = st.text_input(translate_text("Enter your address (e.g., City, State, Country):",language_code))
-
+    dist = st.selectbox(
+            'Select a number:',
+                [10, 15, 20]  # Options in the dropdown
+                )
+     
     # Initialize session state for map, donors, and receiver coordinates
     if "donor_map" not in st.session_state:
         st.session_state.donor_map = None
@@ -301,7 +308,7 @@ def receive_page():
                     donor_coords = tuple(map(float, donor_data["location"].split(',')))
                     distance = geodesic(donor_coords, receiver_coords).km
 
-                    if distance <= 10:  # Only include donors within 10km radius
+                    if distance <= dist:  # Only include donors within 10km radius
                         # Calculate months since last donation using the last_donation field
                         last_donation = donor_data.get("last_donation", None)
                         if last_donation:
@@ -405,8 +412,7 @@ def sos_page():
     if st.button("Back to Home", key="back_to_home"):
         st.session_state.page = "home"
 
-# Function for Donor Requests Page
-# Function for Donor Requests Page
+# Donor Requests Page
 def donor_requests_page():
     st.markdown("<h1 style='text-align: center;'>Donor Requests</h1>", unsafe_allow_html=True)
 
@@ -416,45 +422,47 @@ def donor_requests_page():
     if st.button("View Requests", key="view_requests"):
         if not donor_mobile:
             st.error("Please enter your mobile number!")
-        else:
-            # Initialize session state to hold fetched requests
-            if "donor_requests" not in st.session_state:
-                st.session_state.donor_requests = {"regular": [], "sos": []}
+            return
 
-            # Fetch donor's information from Firestore
-            donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
+        # Initialize session state to hold fetched requests
+        if "donor_requests" not in st.session_state:
+            st.session_state.donor_requests = {"regular": [], "sos": []}
 
-            if not donor_info:
-                st.error("No donor found with this mobile number!")
-                return
+        # Fetch donor's information from Firestore
+        donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
 
-            donor_data = donor_info[0].to_dict()
-            donor_blood_group = donor_data["blood_group"]
-            donor_coords = tuple(map(float, donor_data["location"].split(",")))
+        if not donor_info:
+            st.error("No donor found with this mobile number!")
+            return
 
-            # Fetch Regular Requests
-            try:
-                regular_requests = db.collection("requests").where("donor_mobile", "==", donor_mobile).stream()
-                st.session_state.donor_requests["regular"] = [
-                    {"id": req.id, **req.to_dict()} for req in regular_requests
-                ]
-            except Exception as e:
-                st.error(f"Error fetching regular requests: {e}")
+        donor_data = donor_info[0].to_dict()
+        donor_blood_group = donor_data.get("blood_group")
+        donor_coords = tuple(map(float, donor_data.get("location", "").split(",")))
 
-            # Fetch SOS Requests
-            try:
-                sos_requests = db.collection("sos_requests").where("blood_group", "==", donor_blood_group).stream()
-                st.session_state.donor_requests["sos"] = []
+        # Fetch Regular Requests
+        try:
+            regular_requests = db.collection("requests").where("status", "==", "Accepted").where("donor_mobile", "==", donor_mobile).stream()
+            st.session_state.donor_requests["regular"] = [
+                {"id": req.id, **req.to_dict()} for req in regular_requests
+            ]
+        except Exception as e:
+            st.error(f"Error fetching regular requests: {e}")
 
-                for req in sos_requests:
-                    req_data = req.to_dict()
-                    sos_coords = tuple(map(float, req_data["location"].split(",")))
-                    distance = geodesic(donor_coords, sos_coords).km
-                    if distance <= 15:  # Include only SOS requests within 15 km
-                        req_data["distance"] = round(distance, 2)  # Add distance info
-                        st.session_state.donor_requests["sos"].append(req_data)
-            except Exception as e:
-                st.error(f"Error fetching SOS requests: {e}")
+        # Fetch SOS Requests
+        try:
+            sos_requests = db.collection("sos_requests").where("status", "==", "Accepted").where("blood_group", "==", donor_blood_group).stream()
+            st.session_state.donor_requests["sos"] = []
+
+            for req in sos_requests:
+                req_data = req.to_dict()
+                req_data["id"] = req.id  # Extract the document ID
+                sos_coords = tuple(map(float, req_data["location"].split(",")))
+                distance = geodesic(donor_coords, sos_coords).km
+                if distance <= 15:  # Include only SOS requests within 15 km
+                    req_data["distance"] = round(distance, 2)  # Add distance info
+                    st.session_state.donor_requests["sos"].append(req_data)
+        except Exception as e:
+            st.error(f"Error fetching SOS requests: {e}")
 
     # Display Requests
     if "donor_requests" in st.session_state:
@@ -471,6 +479,36 @@ def donor_requests_page():
                 **Distance:** {req['distance']} km  
                 **Submitted At:** {req['submitted_at']}  
                 """)
+
+                # Accept and Reject Buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Accept SOS {idx + 1}", key=f"accept_sos_{idx}"):
+                        try:
+                            # Update the status of the SOS request to Accepted
+                            db.collection("sos_requests").document(req["id"]).update({"status": "Accepted"})
+
+                            # Store the donor's information in the sos_requests document
+                            donor_info = {
+                                "donor_name": donor_data["name"],
+                                "donor_mobile": donor_data["mobile"],
+                                "donor_blood_group": donor_data["blood_group"],
+                                "donor_coords": f"{donor_coords[0]},{donor_coords[1]}",
+                                "donor_accepted_at": datetime.datetime.now().isoformat()
+                            }
+                            db.collection("sos_requests").document(req["id"]).update(donor_info)
+
+                            st.success(f"SOS Request {idx + 1} accepted successfully!")
+                        except Exception as e:
+                            st.error(f"Error accepting SOS request: {e}")
+
+                with col2:
+                    if st.button(f"Reject SOS {idx + 1}", key=f"reject_sos_{idx}"):
+                        try:
+                            db.collection("sos_requests").document(req["id"]).update({"status": "Rejected"})
+                            st.warning(f"SOS Request {idx + 1} rejected!")
+                        except Exception as e:
+                            st.error(f"Error rejecting SOS request: {e}")
         else:
             st.info("No SOS requests found.")
 
@@ -486,56 +524,81 @@ def donor_requests_page():
                 **Address:** {req['receiver_address']}  
                 **Requested At:** {req['requested_at']}  
                 """)
+
+                # Accept and Reject Buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Accept Regular {idx + 1}", key=f"accept_regular_{idx}"):
+                        try:
+                            db.collection("requests").document(req["id"]).update({"status": "Accepted"})
+                            st.success(f"Regular Request {idx + 1} accepted successfully!")
+                        except Exception as e:
+                            st.error(f"Error accepting regular request: {e}")
+
+                with col2:
+                    if st.button(f"Reject Regular {idx + 1}", key=f"reject_regular_{idx}"):
+                        try:
+                            db.collection("requests").document(req["id"]).update({"status": "Rejected"})
+                            st.warning(f"Regular Request {idx + 1} rejected!")
+                        except Exception as e:
+                            st.error(f"Error rejecting regular request: {e}")
         else:
             st.info("No regular requests found.")
 
 
+
 def donor_history_page():
-    st.markdown("<h1 style='text-align: center;'>"+translate_text("Donation History",language_code)+"</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>Donation History</h1>", unsafe_allow_html=True)
 
     # Input for donor's mobile number
-    donor_mobile = st.text_input(translate_text("Enter your mobile number to view your history:",language_code), key="donor_mobile",)
+    donor_mobile = st.text_input("Enter your mobile number to view your history:", key="history_donor_mobile")
 
-    if st.button(translate_text("View History",language_code),key="view_history"):
+    if st.button("View History", key="view_history"):
         if not donor_mobile:
-            st.error(translate_text("Please enter your mobile number!",language_code))
+            st.error("Please enter your mobile number!")
         else:
-            # Query the requests collection for accepted donations
             try:
-                history_query = db.collection("requests") \
-                                  .where("donor_mobile", "==", donor_mobile) \
-                                  .where("status", "==", "Accepted") \
-                                  .stream()
+                # Fetch Accepted Regular Donations (show only accepted requests)
+                regular_history_query = db.collection("requests") \
+                    .where("donor_mobile", "==", donor_mobile) \
+                    .where("status", "==", "Accepted") \
+                    .stream()
 
-                # Load history into session state
-                st.session_state.donation_history = [
-                    {"id": req.id, **req.to_dict()} for req in history_query
-                ]
+                regular_history = [{"id": req.id, **req.to_dict()} for req in regular_history_query]
 
-                # Notify if no history
-                if not st.session_state.donation_history:
-                    st.info(translate_text("No accepted donations found.",language_code))
+                # Fetch Accepted SOS Donations (show only accepted requests)
+                sos_history_query = db.collection("sos_requests") \
+                    .where("donor_mobile", "==", donor_mobile) \
+                    .where("status", "==", "Accepted") \
+                    .stream()
+
+                sos_history = [{"id": req.id, **req.to_dict()} for req in sos_history_query]
+
+                # Display Regular Accepted Donations
+                st.markdown("### Regular Donations:")
+                if regular_history:
+                    for donation in regular_history:
+                        st.write(f"""
+                        **Receiver Name:** {donation['receiver_name']}  
+                        **Blood Group:** {donation['receiver_blood_group']}  
+                        **Accepted At:** {donation['accepted_at']}  
+                        """)
                 else:
-                    st.success(translate_text("Donation history loaded successfully!",language_code))
+                    st.info("No regular accepted donations found.")
+
+                # Display SOS Accepted Donations
+                st.markdown("### 🆘 SOS Donations:")
+                if sos_history:
+                    for donation in sos_history:
+                        st.write(f"""
+                        **Name:** {donation['name']}  
+                        **Blood Group:** {donation['blood_group']}  
+                        **Accepted At:** {donation['accepted_at']}  
+                        """)
+                else:
+                    st.info("No SOS accepted donations found.")
             except Exception as e:
-                st.error(translate_text(f"Error fetching history: {e}",language_code))
-
-    # Display history if available
-    if "donation_history" in st.session_state and st.session_state.donation_history:
-        st.markdown(translate_text("### Accepted Donations:",language_code))
-
-        for idx, donation in enumerate(st.session_state.donation_history):
-            donation_date = donation.get("accepted_at", "N/A")
-            st.write(f"""
-            *Receiver Name:* {donation['receiver_name']}  
-            *Receiver Mobile:* {donation['receiver_mobile']}  
-            *Blood Group:* {donation['receiver_blood_group']}  
-            *Donation Date:* {donation_date}  
-            """)
-
-            if st.button(f"View Details {idx+1}", key=f"view_details_{idx}"):
-                st.write(f"*Full Details for Request ID {donation['id']}:*")
-                st.json(donation)
+                st.error(f"Error fetching donation history: {e}")
 
 
 def forum_page():
