@@ -433,21 +433,26 @@ def donor_requests_page():
         # Fetch donor's information from Firestore
         donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
 
+        # Debugging: Check if any donor info is fetched
+        st.write(f"Fetched donor info: {donor_info}")  # Debugging line
+
         if len(donor_info) == 0:
             st.error("No donor found with this mobile number!")
             return
 
-        global donor_data 
-
         donor_data = donor_info[0].to_dict()
+
+        # Debugging: Print the donor data to ensure it's fetched correctly
+        st.write(f"Donor Data: {donor_data}")  # Debugging line
+        
         donor_blood_group = donor_data.get("blood_group")
         donor_coords = tuple(map(float, donor_data.get("location", "").split(",")))
 
-        st.write(f"Donor Found: {donor_data}")  # Debugging line
+        st.write(f"Donor Found: {donor_data}")  # Debugging line to check donor data
 
         # Fetch Regular Requests
         try:
-            regular_requests = db.collection("requests").where("status", "==", "Pending").where("donor_mobile", "==", donor_mobile).stream()
+            regular_requests = db.collection("requests").where("status", "==", "Accepted").where("donor_mobile", "==", donor_mobile).stream()
             st.session_state.donor_requests["regular"] = [
                 {"id": req.id, **req.to_dict()} for req in regular_requests
             ]
@@ -457,7 +462,7 @@ def donor_requests_page():
 
         # Fetch SOS Requests
         try:
-            sos_requests = db.collection("sos_requests").where("status", "==", "Pending").where("blood_group", "==", donor_blood_group).stream()
+            sos_requests = db.collection("sos_requests").where("status", "==", "Accepted").where("blood_group", "==", donor_blood_group).stream()
             st.session_state.donor_requests["sos"] = []
 
             for req in sos_requests:
@@ -497,19 +502,19 @@ def donor_requests_page():
                             if 'donor_data' not in locals():
                                 st.error("Donor data is unavailable. Please try again.")
                                 return
-                            
+
                             # Update the status of the SOS request to Accepted
                             db.collection("sos_requests").document(req["id"]).update({"status": "Accepted"})
 
                             # Store the donor's information in the sos_requests document
-                            donor_info = {
+                            donor_info_to_store = {
                                 "donor_name": donor_data["name"],
                                 "donor_mobile": donor_data["mobile"],
                                 "donor_blood_group": donor_data["blood_group"],
                                 "donor_coords": f"{donor_coords[0]},{donor_coords[1]}",
                                 "donor_accepted_at": datetime.datetime.now().isoformat()
                             }
-                            db.collection("sos_requests").document(req["id"]).update(donor_info)
+                            db.collection("sos_requests").document(req["id"]).update(donor_info_to_store)
 
                             st.success(f"SOS Request {idx + 1} accepted successfully!")
                         except Exception as e:
@@ -551,14 +556,14 @@ def donor_requests_page():
                             db.collection("requests").document(req["id"]).update({"status": "Accepted"})
 
                             # Store the donor's information in the requests document
-                            donor_info = {
+                            donor_info_to_store = {
                                 "donor_name": donor_data["name"],
                                 "donor_mobile": donor_data["mobile"],
                                 "donor_blood_group": donor_data["blood_group"],
                                 "donor_coords": f"{donor_coords[0]},{donor_coords[1]}",
                                 "donor_accepted_at": datetime.datetime.now().isoformat()
                             }
-                            db.collection("requests").document(req["id"]).update(donor_info)
+                            db.collection("requests").document(req["id"]).update(donor_info_to_store)
 
                             st.success(f"Regular Request {idx + 1} accepted successfully!")
                         except Exception as e:
@@ -608,7 +613,7 @@ def donor_history_page():
                         st.write(f"""
                         **Receiver Name:** {donation['receiver_name']}  
                         **Blood Group:** {donation['receiver_blood_group']}  
-                        **Accepted At:** {donation['accepted_at']}  
+                        **acceptedt:** {donation['accepted_at']}  
                         """)
                 else:
                     st.info("No regular accepted donations found.")
