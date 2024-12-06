@@ -431,16 +431,16 @@ def donor_requests_page():
             st.session_state.donor_requests = {"regular": [], "sos": []}
 
         # Fetch donor's information from Firestore
-        donor_info = db.collection("donors").where("mobile", "==", donor_mobile).get()
+        donor_info = db.collection("donors").document(donor_mobile).get()
 
-        # Debugging: Check if any donor info is fetched
+        # Debugging: Check if donor info is fetched successfully
         st.write(f"Fetched donor info: {donor_info}")  # Debugging line
 
-        if len(donor_info) == 0:
+        if not donor_info.exists:
             st.error("No donor found with this mobile number!")
             return
 
-        donor_data = donor_info[0].to_dict()
+        donor_data = donor_info.to_dict()
 
         # Debugging: Print the donor data to ensure it's fetched correctly
         st.write(f"Donor Data: {donor_data}")  # Debugging line
@@ -462,7 +462,7 @@ def donor_requests_page():
 
         # Fetch SOS Requests
         try:
-            sos_requests = db.collection("sos_requests").where("status", "==", "Pending").where("blood_group", "==", donor_blood_group).stream()
+            sos_requests = db.collection("sos_requests").where("status", "==", "Accepted").where("blood_group", "==", donor_blood_group).stream()
             st.session_state.donor_requests["sos"] = []
 
             for req in sos_requests:
@@ -578,6 +578,7 @@ def donor_requests_page():
                             st.error(f"Error rejecting regular request: {e}")
         else:
             st.info("No regular requests found.")
+
 
 def donor_history_page():
     st.markdown("<h1 style='text-align: center;'>Donation History</h1>", unsafe_allow_html=True)
