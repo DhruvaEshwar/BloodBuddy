@@ -554,7 +554,6 @@ def donor_requests_page():
             st.info("No regular requests found.")
 
 
-
 def donor_history_page():
     st.markdown("<h1 style='text-align: center;'>Donation History</h1>", unsafe_allow_html=True)
 
