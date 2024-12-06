@@ -462,7 +462,7 @@ def donor_requests_page():
 
         # Fetch SOS Requests
         try:
-            sos_requests = db.collection("sos_requests").where("status", "==", "Accepted").where("blood_group", "==", donor_blood_group).stream()
+            sos_requests = db.collection("sos_requests").where("status", "==", "Pending").where("blood_group", "==", donor_blood_group).stream()
             st.session_state.donor_requests["sos"] = []
 
             for req in sos_requests:
