@@ -440,7 +440,7 @@ def donor_requests_page():
             st.error("No donor found with this mobile number!")
             return
 
-        donor_data = donor_info[0].to_dict()
+        donor_data = donor_info.to_dict()
 
         # Debugging: Print the donor data to ensure it's fetched correctly
         st.write(f"Donor Data: {donor_data}")  # Debugging line
