@@ -163,24 +163,40 @@ def main_page():
 # Function for login page
 def login_page():
     st.subheader('Login')
+
+    # Get email and password inputs from the user
     email = st.text_input('Enter your email:', key="login_email")
     password = st.text_input('Enter your password:', type='password', key="login_password")
-    user = auth.get_user_by_email(email)
-    if not user.email_verified:
+
+    # Check if the email is valid
+    if not email:
+        st.error("Email is required")
+        return
+    if not password:
+        st.error("Password is required")
+        return
+
+    # Check if the email is verified
+    try:
+        user = auth.get_user_by_email(email)
+        if not user.email_verified:
             st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
             return
-    if ValueError: 
-        print("Invalid email:  Email must be a non-empty string.")
+    except auth.UserNotFoundError:
+        st.error("No user found with that email.")
+        return
 
+    # Authentication and login process
     if st.button('Login', key="login_btn"):
         try:
-            user = auth.get_user_by_email(email)
-            st.success(f'Logged in successfully as {user.email}')
+            # Sign in with email and password
+            user = auth.sign_in_with_email_and_password(email, password)
+            st.success(f'Logged in successfully as {email}')
             st.session_state.page = 'home'
-        except Exception:
-            st.error('Login failed. Check your credentials.')
-        
+        except Exception as e:
+            st.error(f'Login failed: {e}')
 
+    # 'Back' button to go to main page
     if st.button('Back', key="login_back"):
         st.session_state.page = 'main'
 
