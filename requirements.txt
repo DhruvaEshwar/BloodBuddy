@@ -9,3 +9,4 @@ streamlit-folium>=0.23.2
 xds-protos>=1.68.1
 yagmail>=0.15.293
 streamlit-js-eval>=0.1.7
+requests>= 2.32.3
