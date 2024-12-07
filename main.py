@@ -16,7 +16,7 @@ import requests
 import base64
 from gtts import gTTS
 import os
-
+import json
 
 st.set_page_config(page_title="BloodBuddy App", page_icon="🩸", layout="centered", initial_sidebar_state="expanded")
 st.markdown("""
@@ -597,7 +597,7 @@ def get_coordinates_from_address(state, city, pincode):
         return location.latitude, location.longitude
     return None, None
 
-# Function to display the map with a draggable marker
+# Function to create a map and allow the user to drag a marker
 def locator_page():
     st.markdown("<h1 style='text-align: center;'>Select Your Location</h1>", unsafe_allow_html=True)
     
@@ -615,28 +615,31 @@ def locator_page():
             map_center = [lat, lon]
             folium_map = folium.Map(location=map_center, zoom_start=13)
 
-            # Add a draggable marker
+            # Add a draggable marker to the map
             marker = folium.Marker(
                 location=map_center,
                 popup="Move me to select your location!",
                 icon=folium.Icon(color="green"),
                 draggable=True
-            ).add_to(folium_map)
+            )
+            marker.add_to(folium_map)
 
-            # Add draw plugin for more interactivity (e.g., to draw shapes, lines)
+            # Add Draw plugin for extra functionality (optional)
             Draw().add_to(folium_map)
 
             # Display the map
             st.markdown("### Map of Your Area")
-            st_folium(folium_map, width=700, height=500)
+            map_data = st_folium(folium_map, width=700, height=500)
 
-            # After the user moves the marker, we would need to capture the new location.
-            # Folium itself doesn't provide a way to directly capture marker movement in real-time.
-            # A workaround is to use a JavaScript solution, but for pure Python, we cannot get dynamic
-            # updates of marker movement without the help of JS or Streamlit component.
+            # Check if marker position is updated
+            if map_data:
+                # Extract the new marker coordinates
+                new_lat = map_data['last_active_drawing']['lat']
+                new_lon = map_data['last_active_drawing']['lng']
 
-            st.success(f"Location Coordinates: Latitude: {lat}, Longitude: {lon}")
-
+                # Display updated location
+                st.success(f"Location Updated: Latitude: {new_lat}, Longitude: {new_lon}")
+                
         else:
             st.error("Could not find coordinates for the provided address. Please check the inputs.")
     else:
