@@ -718,7 +718,7 @@ def render_page():
             donor_history_page()
         elif st.session_state.page == 'forum':
             forum_page()
-        elif st.session_state.page == "Nearby Facilities Locator":
+        elif st.session_state.page == "nearby_facilities_locator":
             locator_page()
 
 
