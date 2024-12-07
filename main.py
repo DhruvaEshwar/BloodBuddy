@@ -587,37 +587,18 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
+def get_location_ip():
+    try:
+        # Using the ipinfo.io service to get approximate location based on IP
+        response = requests.get("https://ipinfo.io")
+        data = response.json()
+        location = data['loc'].split(',')
+        return float(location[0]), float(location[1])
+    except Exception as e:
+        st.error(f"Error getting location: {e}")
+        return None, None
 
-# JavaScript to fetch the user's location
-def get_location_component():
-    return """
-    <script>
-    function getLocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
-
-                    // Pass data back to Streamlit
-                    const data = { latitude, longitude };
-                    Streamlit.setComponentValue(JSON.stringify(data));
-                },
-                (error) => {
-                    console.error("Error fetching location:", error);
-                    Streamlit.setComponentValue(null);
-                }
-            );
-        } else {
-            console.error("Geolocation is not supported by this browser.");
-            Streamlit.setComponentValue(null);
-        }
-    }
-    getLocation();
-    </script>
-    """
-
-# Function to fetch nearby facilities from OpenStreetMap
+# Function to fetch nearby facilities using Overpass API
 def get_nearby_facilities(lat, lon, radius=15):
     radius_meters = radius * 1000  # Convert km to meters
     overpass_url = "https://overpass-api.de/api/interpreter"
@@ -645,61 +626,49 @@ def get_nearby_facilities(lat, lon, radius=15):
 # Main locator page
 def locator_page():
     st.markdown("<h1 style='text-align: center;'>Nearby Blood Facilities Locator</h1>", unsafe_allow_html=True)
-    st.markdown("Allow location access to find blood-related facilities nearby.")
+    st.markdown("We will find blood-related facilities near you based on your location.")
 
-    # Embed the JavaScript for location fetching
-    location_result = components.html(get_location_component(), height=0, key="location_js")
+    # Fetch the user's location based on IP
+    user_lat, user_lon = get_location_ip()
 
-    if location_result:
-        try:
-            # Parse location data
-            location_data = st.session_state.get("location_js", None)
-            if location_data:
-                import json
-                user_coords = json.loads(location_data)
-                user_lat, user_lon = user_coords["latitude"], user_coords["longitude"]
+    if user_lat and user_lon:
+        st.success(f"Location detected: ({user_lat}, {user_lon})")
 
-                st.success(f"Location detected: ({user_lat}, {user_lon})")
+        # Fetch nearby facilities using Overpass API
+        facilities = get_nearby_facilities(user_lat, user_lon)
 
-                # Fetch nearby facilities using OpenStreetMap
-                facilities = get_nearby_facilities(user_lat, user_lon)
+        if facilities:
+            # List facilities
+            st.markdown("### 🩸 Nearby Blood Facilities (within 15 km):")
+            folium_map = folium.Map(location=[user_lat, user_lon], zoom_start=13)
 
-                if facilities:
-                    # List facilities
-                    st.markdown("### 🩸 Nearby Blood Facilities (within 15 km):")
-                    folium_map = folium.Map(location=[user_lat, user_lon], zoom_start=13)
+            for idx, facility in enumerate(facilities):
+                facility_name = facility["name"]
+                facility_lat = facility["lat"]
+                facility_lon = facility["lon"]
 
-                    for idx, facility in enumerate(facilities):
-                        facility_name = facility["name"]
-                        facility_lat = facility["lat"]
-                        facility_lon = facility["lon"]
+                # Display facility details
+                st.markdown(f"""
+                **Facility {idx + 1}:**  
+                - **Name:** {facility_name}  
+                - **Location:** ({facility_lat}, {facility_lon})  
+                """)
 
-                        # Display facility details
-                        st.markdown(f"""
-                        **Facility {idx + 1}:**  
-                        - **Name:** {facility_name}  
-                        - **Location:** ({facility_lat}, {facility_lon})  
-                        """)
+                # Add marker to the map
+                folium.Marker(
+                    location=[facility_lat, facility_lon],
+                    popup=f"{facility_name}",
+                    tooltip=f"{facility_name}",
+                    icon=folium.Icon(color="red", icon="tint", prefix="fa")
+                ).add_to(folium_map)
 
-                        # Add marker to the map
-                        folium.Marker(
-                            location=[facility_lat, facility_lon],
-                            popup=f"{facility_name}",
-                            tooltip=f"{facility_name}",
-                            icon=folium.Icon(color="red", icon="tint", prefix="fa")
-                        ).add_to(folium_map)
-
-                    # Display the map with markers
-                    st.markdown("### 📍 Map of Nearby Facilities")
-                    st_folium(folium_map, width=700, height=500)
-                else:
-                    st.info("No blood-related facilities found nearby.")
-        except Exception as e:
-            st.error(f"An error occurred while processing location data: {e}")
-
-# Run the locator page
-locator_page()
-
+            # Display the map with markers
+            st.markdown("### 📍 Map of Nearby Facilities")
+            st_folium(folium_map, width=700, height=500)
+        else:
+            st.info("No blood-related facilities found nearby.")
+    else:
+        st.warning("Unable to fetch your location. Please try again later.")
 
 # Function to render pages based on session state
 def render_page():
