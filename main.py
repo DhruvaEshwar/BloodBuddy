@@ -166,7 +166,7 @@ def login_page():
     email = st.text_input('Enter your email:', key="login_email")
     password = st.text_input('Enter your password:', type='password', key="login_password")
     user = auth.get_user_by_email(email)
-     if not email:
+    if not email:
         st.error("Email is required")
         return
     if not password:
