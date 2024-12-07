@@ -586,6 +586,120 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
+
+# JavaScript to fetch the user's location
+def get_location_component():
+    return """
+    <script>
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
+
+                    // Pass data back to Streamlit
+                    const data = { latitude, longitude };
+                    Streamlit.setComponentValue(JSON.stringify(data));
+                },
+                (error) => {
+                    console.error("Error fetching location:", error);
+                    Streamlit.setComponentValue(null);
+                }
+            );
+        } else {
+            console.error("Geolocation is not supported by this browser.");
+            Streamlit.setComponentValue(null);
+        }
+    }
+    getLocation();
+    </script>
+    """
+
+# Function to fetch nearby facilities from OpenStreetMap
+def get_nearby_facilities(lat, lon, radius=15):
+    radius_meters = radius * 1000  # Convert km to meters
+    overpass_url = "https://overpass-api.de/api/interpreter"
+    overpass_query = f"""
+    [out:json];
+    (
+      node["amenity"="hospital"](around:{radius_meters},{lat},{lon});
+      node["amenity"="blood_donation"](around:{radius_meters},{lat},{lon});
+      node["healthcare"="blood_centre"](around:{radius_meters},{lat},{lon});
+    );
+    out center;
+    """
+
+    response = requests.get(overpass_url, params={"data": overpass_query})
+    data = response.json()
+
+    facilities = []
+    for element in data.get("elements", []):
+        name = element.get("tags", {}).get("name", "Unknown Facility")
+        lat = element.get("lat")
+        lon = element.get("lon")
+        facilities.append({"name": name, "lat": lat, "lon": lon})
+    return facilities
+
+# Main locator page
+def locator_page():
+    st.markdown("<h1 style='text-align: center;'>Nearby Blood Facilities Locator</h1>", unsafe_allow_html=True)
+    st.markdown("Allow location access to find blood-related facilities nearby.")
+
+    # Embed the JavaScript for location fetching
+    location_result = components.html(get_location_component(), height=0, key="location_js")
+
+    if location_result:
+        try:
+            # Parse location data
+            location_data = st.session_state.get("location_js", None)
+            if location_data:
+                import json
+                user_coords = json.loads(location_data)
+                user_lat, user_lon = user_coords["latitude"], user_coords["longitude"]
+
+                st.success(f"Location detected: ({user_lat}, {user_lon})")
+
+                # Fetch nearby facilities using OpenStreetMap
+                facilities = get_nearby_facilities(user_lat, user_lon)
+
+                if facilities:
+                    # List facilities
+                    st.markdown("### 🩸 Nearby Blood Facilities (within 15 km):")
+                    folium_map = folium.Map(location=[user_lat, user_lon], zoom_start=13)
+
+                    for idx, facility in enumerate(facilities):
+                        facility_name = facility["name"]
+                        facility_lat = facility["lat"]
+                        facility_lon = facility["lon"]
+
+                        # Display facility details
+                        st.markdown(f"""
+                        **Facility {idx + 1}:**  
+                        - **Name:** {facility_name}  
+                        - **Location:** ({facility_lat}, {facility_lon})  
+                        """)
+
+                        # Add marker to the map
+                        folium.Marker(
+                            location=[facility_lat, facility_lon],
+                            popup=f"{facility_name}",
+                            tooltip=f"{facility_name}",
+                            icon=folium.Icon(color="red", icon="tint", prefix="fa")
+                        ).add_to(folium_map)
+
+                    # Display the map with markers
+                    st.markdown("### 📍 Map of Nearby Facilities")
+                    st_folium(folium_map, width=700, height=500)
+                else:
+                    st.info("No blood-related facilities found nearby.")
+        except Exception as e:
+            st.error(f"An error occurred while processing location data: {e}")
+
+# Run the locator page
+locator_page()
+
+
 # Function to render pages based on session state
 def render_page():
     if 'page' not in st.session_state:
@@ -599,7 +713,7 @@ def render_page():
         signup_page()
     elif st.session_state.page == 'sos':  # Add this condition for SOS page
         sos_page()
-    elif st.session_state.page in ['home', 'donate', 'receive', 'settings' , 'blood_requests' , "donor_his" , "forum"]:
+    elif st.session_state.page in ['home', 'donate', 'receive', 'settings' , 'blood_requests' , "donor_his" , "forum", "nearby_facilities_locator"]:
         with st.sidebar:
             st.markdown("<h2 style='text-align: center;'>"+translate_text("Options",language_code)+"</h2>", unsafe_allow_html=True)
             if st.button(translate_text("Home",language_code), key="sidebar_home"):
@@ -616,6 +730,8 @@ def render_page():
                 st.session_state.page = 'donor_his'
             if st.button(translate_text("Forum",language_code), key="sidebar_forum"):
                 st.session_state.page = 'forum'
+            if st.button(translate_text("Nearby Facilities Locator",language_code), key="sidebar_nearby_facilities_locator"):
+                st.session_state.page = 'nearby_facilities_locator'
 
         if st.session_state.page == 'home':
             home_page()
@@ -631,6 +747,8 @@ def render_page():
             donor_history_page()
         elif st.session_state.page == 'forum':
             forum_page()
+        elif page == "Nearby Facilities Locator":
+        locator_page()
 
 
 if __name__ == "__main__":
