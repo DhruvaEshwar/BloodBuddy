@@ -48,7 +48,6 @@ try:
 except ValueError:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
-auth = firebase.auth()
 geolocator = Nominatim(user_agent="bloodbuddy")
 def translate_text(text, target_language):
     """
@@ -164,40 +163,31 @@ def main_page():
 # Function for login page
 def login_page():
     st.subheader('Login')
-
-    # Get email and password inputs from the user
     email = st.text_input('Enter your email:', key="login_email")
     password = st.text_input('Enter your password:', type='password', key="login_password")
-
-    # Check if the email is valid
-    if not email:
+    user = auth.get_user_by_email(email)
+     if not email:
         st.error("Email is required")
         return
     if not password:
         st.error("Password is required")
         return
 
-    # Check if the email is verified
-    try:
-        user = auth.get_user_by_email(email)
-        if not user.email_verified:
+    if not user.email_verified:
             st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
             return
-    except auth.UserNotFoundError:
-        st.error("No user found with that email.")
-        return
+    if ValueError: 
+        print("Invalid email:  Email must be a non-empty string.")
 
-    # Authentication and login process
     if st.button('Login', key="login_btn"):
         try:
-            # Sign in with email and password
-            user = auth.sign_in_with_email_and_password(email, password)
-            st.success(f'Logged in successfully as {email}')
+            user = auth.get_user_by_email(email)
+            st.success(f'Logged in successfully as {user.email}')
             st.session_state.page = 'home'
-        except Exception as e:
-            st.error(f'Login failed: {e}')
+        except Exception:
+            st.error('Login failed. Check your credentials.')
+        
 
-    # 'Back' button to go to main page
     if st.button('Back', key="login_back"):
         st.session_state.page = 'main'
 
