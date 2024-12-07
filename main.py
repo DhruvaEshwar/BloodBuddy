@@ -588,88 +588,49 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
-def get_ip_location():
-    try:
-        response = requests.get("http://ipinfo.io/json")
-        data = response.json()
-        location = data["loc"].split(",")
-        lat, lon = float(location[0]), float(location[1])
-        return lat, lon
-    except Exception as e:
-        st.error(f"Error getting location: {e}")
-        return None, None
+def get_coordinates_from_address(state, city, pincode):
+    geolocator = Nominatim(user_agent="BloodBuddyLocator")
+    location = geolocator.geocode(f"{city}, {state}, {pincode}")
+    if location:
+        return location.latitude, location.longitude
+    return None, None
 
-# Function to fetch nearby hospitals, blood centers, and blood banks from Overpass API
-def get_nearby_facilities(lat, lon, radius=15):
-    radius_meters = radius * 1000  # Convert km to meters
-    overpass_url = "https://overpass-api.de/api/interpreter"
-    overpass_query = f"""
-    [out:json];
-    (
-      node["amenity"="hospital"](around:{radius_meters},{lat},{lon});
-      node["amenity"="blood_donation"](around:{radius_meters},{lat},{lon});
-      node["healthcare"="blood_centre"](around:{radius_meters},{lat},{lon});
-    );
-    out center;
-    """
-
-    response = requests.get(overpass_url, params={"data": overpass_query})
-    data = response.json()
-
-    facilities = []
-    for element in data.get("elements", []):
-        name = element.get("tags", {}).get("name", "Unknown Facility")
-        lat = element.get("lat")
-        lon = element.get("lon")
-        facilities.append({"name": name, "lat": lat, "lon": lon})
-    return facilities
-
-# Locator page where user's location is detected
+# Function to display the map and allow the user to click to select a location
 def locator_page():
-    st.markdown("<h1 style='text-align: center;'>Nearby Blood Facilities Locator</h1>", unsafe_allow_html=True)
-    st.markdown("We will find blood-related facilities near you based on your location.")
+    st.markdown("<h1 style='text-align: center;'>Select Your Location</h1>", unsafe_allow_html=True)
+    
+    # Inputs for state, city, and pin code
+    state = st.text_input("Enter your State:")
+    city = st.text_input("Enter your City:")
+    pincode = st.text_input("Enter your Pin Code:")
 
-    # Get IP-based location (latitude, longitude)
-    lat, lon = get_ip_location()
+    if pincode:
+        # Fetch coordinates from state, city, and pin code
+        lat, lon = get_coordinates_from_address(state, city, pincode)
 
-    if lat and lon:
-        st.success(f"Location detected: ({lat}, {lon})")
+        if lat and lon:
+            # Create map centered at the fetched location
+            map_center = [lat, lon]
+            folium_map = folium.Map(location=map_center, zoom_start=13)
 
-        # Fetch nearby facilities using Overpass API
-        facilities = get_nearby_facilities(lat, lon)
+            # Add a marker at the fetched location
+            folium.Marker(
+                location=map_center,
+                popup="This is your selected location",
+                icon=folium.Icon(color="green")
+            ).add_to(folium_map)
 
-        if facilities:
-            # List facilities
-            st.markdown("### 🩸 Nearby Blood Facilities (within 15 km):")
-            folium_map = folium.Map(location=[lat, lon], zoom_start=13)
-
-            for idx, facility in enumerate(facilities):
-                facility_name = facility["name"]
-                facility_lat = facility["lat"]
-                facility_lon = facility["lon"]
-
-                # Display facility details
-                st.markdown(f"""
-                **Facility {idx + 1}:**  
-                - **Name:** {facility_name}  
-                - **Location:** ({facility_lat}, {facility_lon})  
-                """)
-
-                # Add marker to the map
-                folium.Marker(
-                    location=[facility_lat, facility_lon],
-                    popup=f"{facility_name}",
-                    tooltip=f"{facility_name}",
-                    icon=folium.Icon(color="red", icon="tint", prefix="fa")
-                ).add_to(folium_map)
-
-            # Display the map with markers
-            st.markdown("### 📍 Map of Nearby Facilities")
+            # Display the map
+            st.markdown("### Map of Your Area")
             st_folium(folium_map, width=700, height=500)
+
+            # Display the coordinates of the selected location
+            st.success(f"Location Coordinates: Latitude: {lat}, Longitude: {lon}")
+
         else:
-            st.info("No blood-related facilities found nearby.")
+            st.error("Could not find coordinates for the provided address. Please check the inputs.")
     else:
-        st.warning("Unable to detect your location. Please check your network settings.")
+        st.info("Enter a pin code to view the map of the area.")
 
 # Function to render pages based on session state
 def render_page():
