@@ -588,18 +588,18 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
-def get_location_ip():
+def get_ip_location():
     try:
-        # Using the ipinfo.io service to get approximate location based on IP
-        response = requests.get("https://ipinfo.io")
+        response = requests.get("http://ipinfo.io/json")
         data = response.json()
-        location = data['loc'].split(',')
-        return float(location[0]), float(location[1])
+        location = data["loc"].split(",")
+        lat, lon = float(location[0]), float(location[1])
+        return lat, lon
     except Exception as e:
         st.error(f"Error getting location: {e}")
         return None, None
 
-# Function to fetch nearby facilities using Overpass API
+# Function to fetch nearby hospitals, blood centers, and blood banks from Overpass API
 def get_nearby_facilities(lat, lon, radius=15):
     radius_meters = radius * 1000  # Convert km to meters
     overpass_url = "https://overpass-api.de/api/interpreter"
@@ -624,24 +624,24 @@ def get_nearby_facilities(lat, lon, radius=15):
         facilities.append({"name": name, "lat": lat, "lon": lon})
     return facilities
 
-# Main locator page
+# Locator page where user's location is detected
 def locator_page():
     st.markdown("<h1 style='text-align: center;'>Nearby Blood Facilities Locator</h1>", unsafe_allow_html=True)
     st.markdown("We will find blood-related facilities near you based on your location.")
 
-    # Fetch the user's location based on IP
-    user_lat, user_lon = get_location_ip()
+    # Get IP-based location (latitude, longitude)
+    lat, lon = get_ip_location()
 
-    if user_lat and user_lon:
-        st.success(f"Location detected: ({user_lat}, {user_lon})")
+    if lat and lon:
+        st.success(f"Location detected: ({lat}, {lon})")
 
         # Fetch nearby facilities using Overpass API
-        facilities = get_nearby_facilities(user_lat, user_lon)
+        facilities = get_nearby_facilities(lat, lon)
 
         if facilities:
             # List facilities
             st.markdown("### 🩸 Nearby Blood Facilities (within 15 km):")
-            folium_map = folium.Map(location=[user_lat, user_lon], zoom_start=13)
+            folium_map = folium.Map(location=[lat, lon], zoom_start=13)
 
             for idx, facility in enumerate(facilities):
                 facility_name = facility["name"]
@@ -669,7 +669,7 @@ def locator_page():
         else:
             st.info("No blood-related facilities found nearby.")
     else:
-        st.warning("Unable to fetch your location. Please try again later.")
+        st.warning("Unable to detect your location. Please check your network settings.")
 
 # Function to render pages based on session state
 def render_page():
