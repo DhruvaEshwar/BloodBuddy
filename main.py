@@ -638,7 +638,9 @@ def locator_page():
                 new_lon = map_data['latlng'][1]  # Longitude
 
                 # Display updated location coordinates below the map
-                st.success(f"Location Updated: Latitude: {new_lat}, Longitude: {new_lon}")
+                st.markdown(f"### Updated Coordinates: ")
+                st.write(f"**Latitude:** {new_lat}")
+                st.write(f"**Longitude:** {new_lon}")
                 
         else:
             st.error("Could not find coordinates for the provided address. Please check the inputs.")
