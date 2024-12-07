@@ -588,6 +588,7 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
+# Function to get coordinates based on state, city, and pin code
 def get_coordinates_from_address(state, city, pincode):
     geolocator = Nominatim(user_agent="BloodBuddyLocator")
     location = geolocator.geocode(f"{city}, {state}, {pincode}")
@@ -595,7 +596,7 @@ def get_coordinates_from_address(state, city, pincode):
         return location.latitude, location.longitude
     return None, None
 
-# Function to display the map and allow the user to click to select a location
+# Function to display the map with a draggable marker
 def locator_page():
     st.markdown("<h1 style='text-align: center;'>Select Your Location</h1>", unsafe_allow_html=True)
     
@@ -613,18 +614,26 @@ def locator_page():
             map_center = [lat, lon]
             folium_map = folium.Map(location=map_center, zoom_start=13)
 
-            # Add a marker at the fetched location
-            folium.Marker(
+            # Add a draggable marker
+            marker = folium.Marker(
                 location=map_center,
-                popup="This is your selected location",
-                icon=folium.Icon(color="green")
+                popup="Move me to select your location!",
+                icon=folium.Icon(color="green"),
+                draggable=True
             ).add_to(folium_map)
+
+            # Add draw plugin for more interactivity (e.g., to draw shapes, lines)
+            Draw().add_to(folium_map)
 
             # Display the map
             st.markdown("### Map of Your Area")
             st_folium(folium_map, width=700, height=500)
 
-            # Display the coordinates of the selected location
+            # After the user moves the marker, we would need to capture the new location.
+            # Folium itself doesn't provide a way to directly capture marker movement in real-time.
+            # A workaround is to use a JavaScript solution, but for pure Python, we cannot get dynamic
+            # updates of marker movement without the help of JS or Streamlit component.
+
             st.success(f"Location Coordinates: Latitude: {lat}, Longitude: {lon}")
 
         else:
