@@ -748,7 +748,7 @@ def render_page():
         elif st.session_state.page == 'forum':
             forum_page()
         elif page == "Nearby Facilities Locator":
-        locator_page()
+            locator_page()
 
 
 if __name__ == "__main__":
