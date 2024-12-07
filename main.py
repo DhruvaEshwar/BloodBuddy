@@ -183,9 +183,6 @@ def login_page():
         return
 
 
-    if not user.email_verified:
-            st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
-            return
     if ValueError: 
         print("Invalid email:  Email must be a non-empty string.")
 
