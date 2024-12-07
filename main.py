@@ -603,7 +603,7 @@ def locator_page():
     
     # Inputs for state, city, and pin code
     state = st.text_input("Enter your State:")
-    city = st.text_input("Enter your City:")
+    city = st.text_input("Enter your Address:")
     pincode = st.text_input("Enter your Pin Code:")
 
     if pincode:
