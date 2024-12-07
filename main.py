@@ -48,6 +48,7 @@ try:
 except ValueError:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+auth = firebase.auth()
 geolocator = Nominatim(user_agent="bloodbuddy")
 def translate_text(text, target_language):
     """
