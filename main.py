@@ -637,7 +637,7 @@ def locator_page():
                 new_lat = map_data['latlng'][0]  # Latitude
                 new_lon = map_data['latlng'][1]  # Longitude
 
-                # Display updated location
+                # Display updated location coordinates below the map
                 st.success(f"Location Updated: Latitude: {new_lat}, Longitude: {new_lon}")
                 
         else:
