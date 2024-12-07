@@ -173,6 +173,16 @@ def login_page():
         st.error("Password is required")
         return
 
+    try:
+        user = auth.get_user_by_email(email)
+        if not user.email_verified:
+            st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
+            return
+    except auth.UserNotFoundError:
+        st.error("No user found with that email.")
+        return
+
+
     if not user.email_verified:
             st.error("Your email is not verified. Please check your inbox and verify your email before logging in.")
             return
