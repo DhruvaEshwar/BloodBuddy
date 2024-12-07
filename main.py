@@ -14,6 +14,7 @@ from deep_translator import GoogleTranslator
 import base64
 from gtts import gTTS
 import os
+from streamlit_js_eval import streamlit_js_eval
 
 st.set_page_config(page_title="BloodBuddy App", page_icon="🩸", layout="centered", initial_sidebar_state="expanded")
 st.markdown("""
