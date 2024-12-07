@@ -589,7 +589,7 @@ def settings_page():
         st.session_state.clear()
         st.session_state.page = 'main'
 
-# Function to get coordinates based on state, city, and pin code
+# Function to get coordinates from state, city, and pin code
 def get_coordinates_from_address(state, city, pincode):
     geolocator = Nominatim(user_agent="BloodBuddyLocator")
     location = geolocator.geocode(f"{city}, {state}, {pincode}")
@@ -632,10 +632,10 @@ def locator_page():
             map_data = st_folium(folium_map, width=700, height=500)
 
             # Check if marker position is updated
-            if map_data:
+            if map_data and 'latlng' in map_data:
                 # Extract the new marker coordinates
-                new_lat = map_data['last_active_drawing']['lat']
-                new_lon = map_data['last_active_drawing']['lng']
+                new_lat = map_data['latlng'][0]  # Latitude
+                new_lon = map_data['latlng'][1]  # Longitude
 
                 # Display updated location
                 st.success(f"Location Updated: Latitude: {new_lat}, Longitude: {new_lon}")
